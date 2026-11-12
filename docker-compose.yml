@@ -1,0 +1,49 @@
+services:
+  spark-postgres:
+    env_file:
+      - .env
+    image: postgres:latest
+    container_name: spark-postgres
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - db_network
+  spark-api:
+    build:
+      context: .
+      target: development
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@spark-postgres:5432/${DB_NAME}
+    volumes:
+      - .:/app
+      - /app/node_modules
+    depends_on:
+      spark-postgres:
+        condition: service_healthy
+    command: npm run start:dev
+    networks:
+      - db_network
+
+
+volumes:
+  postgres_data:
+
+networks:
+  db_network:
+    driver: bridge
